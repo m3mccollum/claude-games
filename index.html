@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Bin</title>
+    <style>
+        /* Reset default browser margins/padding so layout math is predictable. */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* Page background and base typography. The dark gradient and font
+           stack match the roulette game so the landing page feels like the
+           same product when the user clicks through. */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            color: #2c3e50;
+        }
+
+        /* Centered white card that holds the title and the games grid.
+           max-width keeps the layout readable on wide monitors; width:100%
+           lets it shrink on narrow screens. */
+        .container {
+            background: white;
+            padding: 36px 32px;
+            border-radius: 14px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+            max-width: 820px;
+            width: 100%;
+        }
+
+        /* Page title — matches the roulette page's deep navy heading color. */
+        h1 {
+            text-align: center;
+            color: #1a1a2e;
+            font-size: 32px;
+            margin-bottom: 6px;
+        }
+
+        /* Tagline below the title. Muted color so the eye lands on the title. */
+        .subtitle {
+            text-align: center;
+            color: #6c7a89;
+            font-size: 14px;
+            margin-bottom: 28px;
+        }
+
+        /* Responsive grid for game cards. auto-fill + minmax means a single
+           card sits centered on narrow screens and multiple cards flow into
+           rows as the viewport widens — no media queries needed. */
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+        }
+
+        /* Each game card is an <a> so the entire tile is clickable and the
+           browser shows a real link affordance (focus ring, right-click menu). */
+        .game-card {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+            background: #f7f9fc;
+            border: 1.5px solid #e0e6ed;
+            border-radius: 10px;
+            padding: 18px;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+        /* Lift the card on hover for a tactile feel; deepen the border to the
+           shared deep-navy accent so it visually links back to the brand. */
+        .game-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(15, 52, 96, 0.18);
+            border-color: #0f3460;
+        }
+
+        /* Top of the card: a colored stripe + the game's name. The stripe
+           color is per-game so future entries can have their own identity. */
+        .game-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        /* The accent dot. Each game card sets its own background via an
+           inline style or a per-game class (see .accent-roulette). */
+        .game-accent {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        /* Roulette gets a red accent — evokes the red pockets on the wheel. */
+        .accent-roulette { background: #c0392b; }
+
+        /* The game's display name. Bold and slightly larger than body text. */
+        .game-name {
+            font-size: 17px;
+            font-weight: bold;
+            color: #1a1a2e;
+        }
+
+        /* One-line description of what the game is. Kept short so cards
+           remain a similar height regardless of how many games exist. */
+        .game-description {
+            font-size: 13px;
+            color: #6c7a89;
+            line-height: 1.45;
+        }
+
+        /* Footer note: small attribution / hint text below the grid. */
+        .footer-note {
+            text-align: center;
+            color: #94a1ae;
+            font-size: 12px;
+            margin-top: 28px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Main card. Everything user-facing lives inside this container so the
+         dark page background only shows as a frame around the content. -->
+    <div class="container">
+        <!-- Page title and short tagline. -->
+        <h1>Claude Games</h1>
+        <p class="subtitle">Pick a game to play.</p>
+
+        <!-- Grid of available games. To add a new game later, drop another
+             <a class="game-card"> block in here pointing at its folder. -->
+        <div class="games-grid">
+            <!-- Roulette card. href points at the roulette/ subfolder so the
+                 browser loads roulette/index.html automatically. -->
+            <a class="game-card" href="roulette/index.html">
+                <!-- Header row: colored accent dot + game name. -->
+                <div class="game-header">
+                    <span class="game-accent accent-roulette"></span>
+                    <span class="game-name">Roulette</span>
+                </div>
+                <!-- Short description so the user knows what the game is
+                     before they click in. -->
+                <p class="game-description">
+                    European single-zero roulette with physics-driven wheel
+                    spins and multi-bet support.
+                </p>
+            </a>
+        </div>
+
+        <!-- Small footer hint. Updated as new games are added. -->
+        <p class="footer-note">More games coming soon.</p>
+    </div>
+</body>
+</html>

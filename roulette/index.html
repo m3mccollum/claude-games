@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roulette Game</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 12px;
+            color: #2c3e50;
+        }
+
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 14px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+            max-width: 820px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #1a1a2e;
+            margin-bottom: 14px;
+            font-size: 22px;
+        }
+
+        /* Top bar: credits, add credits, chip size */
+        .top-bar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            background: #f0f4f8;
+            padding: 10px 14px;
+            border-radius: 10px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            font-size: 13px;
+        }
+        .top-bar > div { display: flex; align-items: center; gap: 6px; }
+        .top-bar label { font-weight: bold; color: #555; font-size: 12px; }
+        .top-bar input {
+            width: 80px;
+            padding: 6px 8px;
+            border: 1.5px solid #0f3460;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .top-bar button {
+            padding: 6px 12px;
+            background: #0f3460;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .top-bar button:hover { background: #163e74; }
+        .credits-amount {
+            font-weight: bold;
+            color: #0f3460;
+            font-size: 18px;
+            min-width: 60px;
+            text-align: right;
+        }
+        .spacer { flex: 1; }
+
+        /* Two-column main layout */
+        .main {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 18px;
+            align-items: start;
+        }
+
+        /* WHEEL */
+        .wheel-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .pointer {
+            width: 0;
+            height: 0;
+            border-left: 12px solid transparent;
+            border-right: 12px solid transparent;
+            border-top: 22px solid #f39c12;
+            filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
+            margin-bottom: -8px;
+            z-index: 5;
+            position: relative;
+        }
+        .wheel-wrapper {
+            position: relative;
+            width: 300px;
+            height: 300px;
+        }
+        .wheel-svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.4));
+            transform-origin: center;
+        }
+        .center-result {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: white;
+            border: 2px solid #0f3460;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: bold;
+            color: #0f3460;
+            pointer-events: none;
+        }
+        .spin-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: transform 0.15s;
+        }
+        .spin-btn:hover:not(:disabled) { transform: scale(1.02); }
+        .spin-btn:disabled { background: #95a5a6; cursor: not-allowed; }
+
+        /* BETTING BOARD */
+        .bets-area {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .bets-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            padding: 6px 10px;
+            background: #f0f4f8;
+            border-radius: 6px;
+        }
+        .bets-info b { color: #0f3460; font-size: 15px; }
+        .clear-btn {
+            padding: 5px 12px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .clear-btn:hover:not(:disabled) { background: #c0392b; }
+        .clear-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+        /* Numbers grid: 0 on left spanning 3 rows + 12x3 grid for 1-36 */
+        .numbers-grid {
+            display: grid;
+            grid-template-columns: 32px repeat(12, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 2px;
+        }
+        .numbers-grid .zero {
+            grid-row: 1 / span 3;
+            font-size: 14px;
+        }
+
+        .bet-cell {
+            position: relative;
+            padding: 8px 0;
+            text-align: center;
+            border: 1px solid #0a2547;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 11px;
+            border-radius: 3px;
+            user-select: none;
+            transition: filter 0.15s;
+            min-height: 30px;
+        }
+        .bet-cell.red { background: #e74c3c; }
+        .bet-cell.black { background: #2c3e50; }
+        .bet-cell.green { background: #27ae60; }
+        .bet-cell.outside { background: #0f3460; padding: 10px 0; }
+        .bet-cell:hover { filter: brightness(1.25); }
+        .bet-cell.winner {
+            outline: 3px solid #f39c12;
+            outline-offset: -2px;
+            animation: winnerPulse 1s ease-in-out 3;
+        }
+        @keyframes winnerPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(243, 156, 18, 0.7); }
+            50% { box-shadow: 0 0 0 6px rgba(243, 156, 18, 0); }
+        }
+
+        /* Outside-bet row (Red/Black/Even/Odd/Low/High) */
+        .outside-bets {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 2px;
+        }
+
+        /* Stake chip on each bet cell */
+        .stake {
+            position: absolute;
+            top: 1px;
+            right: 2px;
+            background: #f39c12;
+            color: #1a1a2e;
+            font-size: 9px;
+            padding: 1px 4px;
+            border-radius: 8px;
+            font-weight: bold;
+            min-width: 14px;
+            line-height: 1;
+        }
+        .stake:empty { display: none; }
+
+        /* Result message */
+        .result {
+            margin-top: 4px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            text-align: center;
+            background: #fff3cd;
+            border: 1.5px solid #ffc107;
+            display: none;
+        }
+        .result.show { display: block; }
+        .result.win { background: #d4edda; border-color: #28a745; }
+        .result.lose { background: #f8d7da; border-color: #dc3545; }
+        .result-num { font-size: 22px; font-weight: bold; margin-bottom: 4px; }
+        .result-text { font-size: 13px; font-weight: bold; }
+        .error { color: #dc3545; font-weight: bold; padding: 6px; font-size: 13px; }
+
+        @media (max-width: 760px) {
+            .main { grid-template-columns: 1fr; }
+            .wheel-area { align-items: center; }
+            .numbers-grid { grid-template-columns: 30px repeat(12, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎡 Roulette</h1>
+
+        <!-- Top bar: credits + add credits + chip size -->
+        <div class="top-bar">
+            <div>
+                <label>Credits:</label>
+                <span class="credits-amount" id="creditsDisplay">1000</span>
+            </div>
+            <div>
+                <input type="number" id="addAmount" min="1" value="100">
+                <button onclick="addCredits()">+ Add</button>
+            </div>
+            <div class="spacer"></div>
+            <div>
+                <label>Chip:</label>
+                <input type="number" id="betAmount" min="1" value="10">
+            </div>
+        </div>
+
+        <div class="main">
+            <!-- LEFT: Wheel -->
+            <div class="wheel-area">
+                <div class="pointer"></div>
+                <div class="wheel-wrapper">
+                    <svg class="wheel-svg" id="wheelSvg" viewBox="0 0 400 400"></svg>
+                    <div class="center-result" id="centerResult">?</div>
+                </div>
+                <button class="spin-btn" id="spinBtn" onclick="spinWheel()">Spin</button>
+            </div>
+
+            <!-- RIGHT: Bet board -->
+            <div class="bets-area">
+                <div class="bets-info">
+                    <span>Total Bet: <b id="totalBet">0</b></span>
+                    <button class="clear-btn" id="clearBtn" onclick="clearBets()">Clear Bets</button>
+                </div>
+
+                <!-- Numbers grid (0 + 1..36) -->
+                <div class="numbers-grid" id="numbersGrid"></div>
+
+                <!-- Outside bets -->
+                <div class="outside-bets">
+                    <div class="bet-cell outside" onclick="addBet('range', 'low')">
+                        1-18 <span class="stake" id="stake-range-low"></span>
+                    </div>
+                    <div class="bet-cell outside" onclick="addBet('parity', 'even')">
+                        EVEN <span class="stake" id="stake-parity-even"></span>
+                    </div>
+                    <div class="bet-cell red" onclick="addBet('color', 'red')">
+                        RED <span class="stake" id="stake-color-red"></span>
+                    </div>
+                    <div class="bet-cell black" onclick="addBet('color', 'black')">
+                        BLACK <span class="stake" id="stake-color-black"></span>
+                    </div>
+                    <div class="bet-cell outside" onclick="addBet('parity', 'odd')">
+                        ODD <span class="stake" id="stake-parity-odd"></span>
+                    </div>
+                    <div class="bet-cell outside" onclick="addBet('range', 'high')">
+                        19-36 <span class="stake" id="stake-range-high"></span>
+                    </div>
+                </div>
+
+                <!-- Result message -->
+                <div class="result" id="resultMessage"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================================
+        //  GAME STATE
+        //  All mutable game data lives in these top-level variables.
+        //  Functions below read and update them directly.
+        // ==========================================================
+
+        // Player's running balance. Decreases when a bet is placed,
+        // increases on wins or when the player adds credits.
+        let credits = 1000;
+
+        // Active bets currently placed on the board. Each entry is an
+        // object shaped like { type, value, amount }. Multiple bets may
+        // target the same option — they accumulate. Bets persist between
+        // spins so the player can keep re-spinning the same wager: at
+        // the end of each round, if the player can still afford the
+        // same total stake, the chips remain on the board (and the
+        // amount is deducted again for the next spin); otherwise the
+        // board is cleared automatically.
+        let bets = [];
+
+        // True while the wheel is mid-spin. Used to block bets, clears,
+        // and a second spin from being started until the wheel stops.
+        let isSpinning = false;
+
+        // The wheel's rotation in degrees. Persists across spins so the
+        // next spin continues smoothly from where the last one ended,
+        // instead of snapping back to 0°.
+        let currentAngle = 0;
+
+        // Reference to the most recently highlighted winning cell so we
+        // can remove the highlight before the next spin.
+        let lastWinningCell = null;
+
+        // The 18 red numbers in European roulette. Every other 1–36 is
+        // black; 0 is green. We use this set both for coloring the wheel
+        // and for evaluating color bets after a spin.
+        const RED_NUMBERS = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
+
+        // 37 sectors total: 0–36 (European single-zero wheel).
+        const TOTAL_NUMBERS = 37;
+
+        // Width of each sector in degrees (≈ 9.7297°). Used everywhere
+        // we convert between sector indices and angles.
+        const DEG_PER_NUMBER = 360 / TOTAL_NUMBERS;
+
+        // ==========================================================
+        //  WHEEL GENERATION (SVG)
+        //  Builds the wheel inside the <svg> element by drawing 37
+        //  pie-slice paths and a number label for each one. Runs once
+        //  at page load — afterwards we just rotate the whole SVG.
+        // ==========================================================
+        function generateWheel() {
+            // Grab the SVG element and define its center and radius.
+            // The SVG viewBox is 0..400, so center is (200,200).
+            const svg = document.getElementById('wheelSvg');
+            const cx = 200, cy = 200, r = 180;
+
+            // Wipe any previous content so this function is idempotent.
+            svg.innerHTML = '';
+
+            // Outer rim — a slightly larger filled circle drawn first
+            // so it sits behind the sectors and shows as a dark ring
+            // around the edge of the wheel.
+            const rim = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            rim.setAttribute('cx', cx);
+            rim.setAttribute('cy', cy);
+            rim.setAttribute('r', r + 10);
+            rim.setAttribute('fill', '#0f3460');
+            svg.appendChild(rim);
+
+            // Build one sector + label per number.
+            for (let i = 0; i < TOTAL_NUMBERS; i++) {
+                // Compute the start and end angles of sector i in
+                // degrees. We subtract 90° so sector 0 begins at the
+                // top of the wheel (12 o'clock) instead of the right
+                // side, which is SVG's default 0° direction.
+                const startA = i * DEG_PER_NUMBER - 90;
+                const endA = (i + 1) * DEG_PER_NUMBER - 90;
+
+                // Convert degrees to radians for use with Math.cos/sin.
+                const sR = startA * Math.PI / 180;
+                const eR = endA * Math.PI / 180;
+
+                // The two outer corners of the sector — points on the
+                // wheel's edge at the start and end angles.
+                const x1 = cx + r * Math.cos(sR);
+                const y1 = cy + r * Math.sin(sR);
+                const x2 = cx + r * Math.cos(eR);
+                const y2 = cy + r * Math.sin(eR);
+
+                // Build the SVG path for the sector: move to the center,
+                // line out to the start corner, draw an arc to the end
+                // corner, then close the shape back to the center.
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`);
+
+                // Color: 0 is green, red numbers are red, everything
+                // else is the dark "black" shade. Stroke gives each
+                // sector a thin separating line.
+                path.setAttribute('fill', i === 0 ? '#27ae60' : RED_NUMBERS.includes(i) ? '#e74c3c' : '#1a1a2e');
+                path.setAttribute('stroke', '#0f3460');
+                path.setAttribute('stroke-width', '1');
+                svg.appendChild(path);
+
+                // Compute the angle of the sector's midpoint and a
+                // point along that bisector at 78% of the wheel radius.
+                // This is where we'll place the number label.
+                const midA = (startA + endA) / 2;
+                const midR = midA * Math.PI / 180;
+                const lr = r * 0.78;
+                const lx = cx + lr * Math.cos(midR);
+                const ly = cy + lr * Math.sin(midR);
+
+                // Create the SVG text element with the number value.
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', lx);
+                text.setAttribute('y', ly);
+
+                // Center the text horizontally and vertically on (lx,ly).
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('dominant-baseline', 'central');
+
+                // Visual styling.
+                text.setAttribute('font-size', '14');
+                text.setAttribute('font-weight', 'bold');
+                text.setAttribute('fill', '#fff');
+
+                // Rotate the label so its bottom faces the wheel center.
+                // After SVG rotation by (midA + 90)°, the top of each
+                // number points outward — so when a sector spins up to
+                // the pointer, its number reads upright to the player.
+                text.setAttribute('transform', `rotate(${midA + 90} ${lx} ${ly})`);
+                text.textContent = i;
+                svg.appendChild(text);
+            }
+
+            // Center hub — a small circle on top of the sectors that
+            // hides the seams meeting at the wheel's center point.
+            const hub = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            hub.setAttribute('cx', cx);
+            hub.setAttribute('cy', cy);
+            hub.setAttribute('r', '20');
+            hub.setAttribute('fill', '#0f3460');
+            hub.setAttribute('stroke', '#f39c12');
+            hub.setAttribute('stroke-width', '2');
+            svg.appendChild(hub);
+        }
+
+        // ==========================================================
+        //  BET BOARD GENERATION
+        //  Builds the clickable number cells (0 + 1..36). The outside
+        //  bets (Red/Black, Even/Odd, 1-18/19-36) are written directly
+        //  in the HTML since there are only six of them.
+        // ==========================================================
+        function generateNumberGrid() {
+            // Empty the grid container so we can rebuild from scratch.
+            const grid = document.getElementById('numbersGrid');
+            grid.innerHTML = '';
+
+            // The "0" cell sits in the leftmost column and stretches
+            // across all 3 rows (CSS handles the row span). Its inner
+            // <span> is where the player's stake on 0 will be drawn.
+            const zero = document.createElement('div');
+            zero.className = 'bet-cell green zero';
+            zero.id = 'cell-number-0';
+            zero.innerHTML = `0<span class="stake" id="stake-number-0"></span>`;
+
+            // Clicking the 0 cell adds a number-0 bet of the current
+            // chip size.
+            zero.onclick = () => addBet('number', 0);
+            grid.appendChild(zero);
+
+            // Build cells 1 through 36. CSS arranges them into the
+            // standard 3-row × 12-column roulette layout.
+            for (let n = 1; n <= 36; n++) {
+                const cell = document.createElement('div');
+
+                // Color the cell based on whether n is a red number.
+                cell.className = 'bet-cell ' + (RED_NUMBERS.includes(n) ? 'red' : 'black');
+
+                // ID is used later for highlighting the winner and for
+                // updating the per-cell stake chip.
+                cell.id = `cell-number-${n}`;
+                cell.innerHTML = `${n}<span class="stake" id="stake-number-${n}"></span>`;
+
+                // Clicking the cell places a single-number bet on n.
+                cell.onclick = () => addBet('number', n);
+                grid.appendChild(cell);
+            }
+        }
+
+        // ==========================================================
+        //  CREDITS / BETS
+        //  These functions handle the player's balance and the bet
+        //  list. They are called by the on-page buttons and by the
+        //  spin/result code.
+        // ==========================================================
+
+        // Render the current credit balance in the top bar.
+        function updateCreditsDisplay() {
+            document.getElementById('creditsDisplay').textContent = credits;
+        }
+
+        // Add the amount in the "+ Add" input to the player's balance.
+        // Wired to the "+ Add" button.
+        function addCredits() {
+            const amount = parseInt(document.getElementById('addAmount').value);
+
+            // Ignore zero, negative, or non-numeric input.
+            if (amount > 0) {
+                credits += amount;
+                updateCreditsDisplay();
+
+                // Hide any leftover result/error message so the UI
+                // doesn't show stale information.
+                clearResult();
+            }
+        }
+
+        // Place a bet of the current chip size on (type, value).
+        // Repeated calls on the same option stack the chip values.
+        function addBet(type, value) {
+            // Block bet placement during a spin.
+            if (isSpinning) return;
+
+            // Read and validate the chip size from the input field.
+            const amount = parseInt(document.getElementById('betAmount').value);
+            if (!amount || amount <= 0) return showError('Enter a valid chip amount');
+            if (amount > credits) return showError('Insufficient credits');
+
+            // Deduct from the balance and append a new bet object.
+            // We push (rather than merge) so the bets list keeps a
+            // record of every chip placed; aggregation happens at
+            // display and payout time.
+            credits -= amount;
+            bets.push({ type, value, amount });
+
+            // Refresh the UI to reflect the new balance and stake.
+            updateCreditsDisplay();
+            updateBetsDisplay();
+            clearResult();
+        }
+
+        // Refund all currently placed bets and empty the bet list.
+        // Wired to the "Clear Bets" button.
+        function clearBets() {
+            if (isSpinning) return;
+
+            // Add each bet's amount back to the player's balance.
+            bets.forEach(b => credits += b.amount);
+            bets = [];
+
+            // Refresh totals, stake chips, and the result area.
+            updateCreditsDisplay();
+            updateBetsDisplay();
+            clearResult();
+        }
+
+        // Redraw the per-cell stake chips and the "Total Bet" number.
+        // Called whenever the bets list changes — when chips are
+        // placed, when the board is cleared, and after each spin
+        // (where bets either persist or get cleared automatically).
+        function updateBetsDisplay() {
+            // Wipe every stake chip so removed bets don't linger on
+            // their old cells.
+            document.querySelectorAll('.stake').forEach(s => s.textContent = '');
+
+            // Sum the chip amounts grouped by option. The key encodes
+            // both the bet type and value, e.g. "color-red" or
+            // "number-17", which matches the IDs of the stake spans.
+            const totals = {};
+            bets.forEach(b => {
+                const k = `${b.type}-${b.value}`;
+                totals[k] = (totals[k] || 0) + b.amount;
+            });
+
+            // Write each option's total into its stake chip element.
+            // The DOM IDs were created in the HTML and in
+            // generateNumberGrid().
+            for (const k in totals) {
+                const el = document.getElementById(`stake-${k}`);
+                if (el) el.textContent = totals[k];
+            }
+
+            // Sum every chip into a grand total displayed at the top
+            // of the bet board.
+            const total = bets.reduce((s, b) => s + b.amount, 0);
+            document.getElementById('totalBet').textContent = total;
+        }
+
+        // ==========================================================
+        //  PHYSICS-BASED SPIN
+        //  Rather than picking a result number and forcing the wheel
+        //  to land on it, we simulate the wheel as a freely spinning
+        //  disk that decelerates under constant friction. Where it
+        //  happens to stop *is* the result.
+        // ==========================================================
+        function spinWheel() {
+            // Guard against double-spins and bet-less spins.
+            if (isSpinning) return;
+            if (bets.length === 0) return showError('Place a bet first');
+
+            // Lock the UI for the duration of the spin.
+            isSpinning = true;
+            document.getElementById('spinBtn').disabled = true;
+            document.getElementById('clearBtn').disabled = true;
+
+            // Reset any UI state left over from the previous round.
+            clearResult();
+            clearWinnerHighlight();
+            document.getElementById('centerResult').textContent = '?';
+
+            // Cache the wheel element — we'll write to its transform
+            // every frame.
+            const wheelSvg = document.getElementById('wheelSvg');
+
+            // --- Spin parameters ---
+            // Initial angular velocity, in degrees per second. 1000–1400
+            // °/s is roughly 3–4 full rotations per second at the start
+            // of the spin, which matches a real wheel's first moments.
+            let angularVelocity = 1000 + Math.random() * 400;
+
+            // Constant deceleration in deg/s². Higher = stops sooner.
+            // Time to stop ≈ v0 / dec  (≈ 5–7 seconds for these ranges).
+            // Total rotation ≈ v0² / (2·dec)  (≈ 5–15 revolutions).
+            const deceleration = 180 + Math.random() * 40;
+
+            // Continue from the wheel's current rotation so the spin
+            // appears to pick up where the last one left off.
+            let angle = currentAngle;
+
+            // performance.now() returns a high-resolution timestamp in
+            // milliseconds. We subtract successive timestamps to get
+            // the real elapsed time between frames, which keeps the
+            // physics smooth across different display refresh rates.
+            let lastTime = performance.now();
+
+            // The per-frame physics step. Called by the browser ~60×/s
+            // (or 120/144× on high-refresh displays) via
+            // requestAnimationFrame.
+            function frame(now) {
+                // dt: seconds since the previous frame. Clamped at
+                // 50 ms so a long pause (e.g. tab in background) can't
+                // teleport the wheel forward by huge amounts.
+                const dt = Math.min((now - lastTime) / 1000, 0.05);
+                lastTime = now;
+
+                // Integrate position from velocity, then bleed velocity
+                // off via the deceleration term. Math.max stops velocity
+                // from going negative (which would reverse the spin).
+                angle += angularVelocity * dt;
+                angularVelocity = Math.max(0, angularVelocity - deceleration * dt);
+
+                // Apply the new angle to the SVG. CSS handles the
+                // GPU-accelerated rendering of the rotation.
+                wheelSvg.style.transform = `rotate(${angle}deg)`;
+
+                // Keep stepping until the wheel is at rest. When it
+                // stops, save the final angle and resolve the result.
+                if (angularVelocity > 0) {
+                    requestAnimationFrame(frame);
+                } else {
+                    currentAngle = angle;
+                    const result = getResultFromAngle(angle);
+                    finishSpin(result);
+                }
+            }
+
+            // Kick off the first frame; subsequent frames are scheduled
+            // recursively from inside frame() above.
+            requestAnimationFrame(frame);
+        }
+
+        // Convert the wheel's current rotation into the sector index
+        // that's currently sitting under the pointer at the top.
+        //
+        // Geometry:  Sector i originally covers [i·DEG − 90, (i+1)·DEG − 90].
+        // After rotating the whole wheel by θ degrees, the same sector
+        // covers [i·DEG − 90 + θ, (i+1)·DEG − 90 + θ] (mod 360).
+        // The pointer sits at angle −90° (top of the wheel). Sector i
+        // contains the pointer when i·DEG + θ ≤ 0 < (i+1)·DEG + θ,
+        // which simplifies to  i = ⌊−θ / DEG⌋  (mod 37).
+        function getResultFromAngle(angle) {
+            // Floor division gives the sector index, possibly negative.
+            const i = Math.floor(-angle / DEG_PER_NUMBER);
+
+            // Wrap into the range [0, 37) using the standard
+            // ((x % n) + n) % n idiom that handles negative numbers.
+            return ((i % TOTAL_NUMBERS) + TOTAL_NUMBERS) % TOTAL_NUMBERS;
+        }
+
+        // ==========================================================
+        //  RESULT HANDLING
+        //  Called once the wheel comes to a stop. Walks every bet,
+        //  pays out winners, updates the UI, and either re-stakes the
+        //  same bets for another spin (when the player can still
+        //  cover them) or clears the board. Finally, unlocks the
+        //  controls so a new round can begin.
+        // ==========================================================
+        function finishSpin(number) {
+            // Resolve the color of the winning number for both the
+            // result message and color-bet evaluation.
+            const color = number === 0 ? 'green' : RED_NUMBERS.includes(number) ? 'red' : 'black';
+
+            // Show the winning number in the small circle at the
+            // wheel's center.
+            document.getElementById('centerResult').textContent = number;
+
+            // Walk every active bet, evaluate it against the result,
+            // and accumulate the totals we need afterward.
+            let totalStaked = 0;
+            let totalPayout = 0;
+            let anyWin = false;
+            bets.forEach(bet => {
+                totalStaked += bet.amount;
+                let won = false;
+
+                // Each bet type has its own win condition. Note that
+                // 0 always loses on the outside bets (parity, range)
+                // — that's the house edge for European roulette.
+                switch (bet.type) {
+                    case 'color':  won = bet.value === color; break;
+                    case 'parity': won = number !== 0 && ((number % 2 === 0) === (bet.value === 'even')); break;
+                    case 'range':  won = number !== 0 && ((number <= 18) === (bet.value === 'low')); break;
+                    case 'number': won = number === bet.value; break;
+                }
+
+                // Single numbers pay 36× the chip; even-money bets pay
+                // 2×. The payout includes the original chip — we
+                // already deducted it when the bet was placed.
+                if (won) {
+                    const multiplier = bet.type === 'number' ? 36 : 2;
+                    totalPayout += bet.amount * multiplier;
+                    anyWin = true;
+                }
+            });
+
+            // Credit any winnings and compute the round's net change.
+            credits += totalPayout;
+            const netGain = totalPayout - totalStaked;
+
+            // Visual feedback: gold pulse on the winning number cell
+            // and a colored result panel.
+            highlightWinner(number);
+            displayResult(number, color, anyWin, netGain);
+
+            // ----- Persist bets for the next round if affordable -----
+            // The chips placed for this round have already been
+            // resolved — collected by the house on losses, returned
+            // (with winnings) on wins. To "keep" the same bets for
+            // another spin, the player must re-fund the same total
+            // out of their current balance.
+            const restakeAmount = bets.reduce((s, b) => s + b.amount, 0);
+
+            // If there are bets and the player can still cover them,
+            // re-deduct the total. The `bets` array is left untouched,
+            // so the same chip values stay drawn on the board.
+            if (restakeAmount > 0 && restakeAmount <= credits) {
+                credits -= restakeAmount;
+            } else {
+                // Otherwise the player has either no bets or can no
+                // longer afford them — clear the board. No refund is
+                // needed because the previous round's chips were
+                // already resolved above.
+                bets = [];
+            }
+
+            // Refresh the balance display and the per-cell stake chips
+            // so the UI matches the new game state.
+            updateCreditsDisplay();
+            updateBetsDisplay();
+
+            // Re-enable the spin/clear buttons so the player can play
+            // another round.
+            isSpinning = false;
+            document.getElementById('spinBtn').disabled = false;
+            document.getElementById('clearBtn').disabled = false;
+        }
+
+        // Add the gold-pulse "winner" outline to the winning number's
+        // cell on the bet board. We remember the cell so the next
+        // spin can clear the highlight.
+        function highlightWinner(number) {
+            const cell = document.getElementById(`cell-number-${number}`);
+            if (cell) {
+                cell.classList.add('winner');
+                lastWinningCell = cell;
+            }
+        }
+
+        // Remove the winner highlight from the previous round's cell.
+        // Called at the start of each new spin.
+        function clearWinnerHighlight() {
+            if (lastWinningCell) {
+                lastWinningCell.classList.remove('winner');
+                lastWinningCell = null;
+            }
+        }
+
+        // Render the colored win/lose panel below the bet board with
+        // the winning number, its color emoji, and the player's net
+        // change in credits for this round.
+        function displayResult(number, color, won, netGain) {
+            const div = document.getElementById('resultMessage');
+            const emoji = color === 'red' ? '🔴' : color === 'black' ? '⚫' : '🟢';
+
+            // Top line: colored ball + result number.
+            let html = `<div class="result-num">${emoji} ${number}</div>`;
+
+            // Bottom line and panel color depend on whether at least
+            // one bet won this round.
+            if (won) {
+                html += `<div class="result-text">🎉 You won ${netGain >= 0 ? '+' : ''}${netGain} credits</div>`;
+                div.className = 'result show win';
+            } else {
+                html += `<div class="result-text">❌ You lost ${Math.abs(netGain)} credits</div>`;
+                div.className = 'result show lose';
+            }
+            div.innerHTML = html;
+        }
+
+        // Show a one-line error in the result panel (e.g. "Insufficient
+        // credits"). Reuses the same panel for simplicity.
+        function showError(msg) {
+            const div = document.getElementById('resultMessage');
+            div.innerHTML = `<div class="error">${msg}</div>`;
+            div.className = 'result show';
+        }
+
+        // Hide the result/error panel and empty its contents.
+        function clearResult() {
+            const div = document.getElementById('resultMessage');
+            div.className = 'result';
+            div.innerHTML = '';
+        }
+
+        // ==========================================================
+        //  INIT
+        //  Wait for the DOM to be parsed, then build the wheel and
+        //  bet board and seed the displays with their initial values.
+        // ==========================================================
+        window.addEventListener('DOMContentLoaded', () => {
+            generateWheel();
+            generateNumberGrid();
+            updateCreditsDisplay();
+            updateBetsDisplay();
+        });
+    </script>
+</body>
+</html>
