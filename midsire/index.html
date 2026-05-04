@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Midsire - Civilization Prototype</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <header id="topbar">
+            <h1>Midsire</h1>
+            <div id="currency">
+                <span class="label">Coins:</span>
+                <span id="currency-amount">0</span>
+            </div>
+        </header>
+        <main id="main">
+            <div id="game-container"></div>
+            <aside id="shop">
+                <h2>Shop</h2>
+                <p class="hint">Drag a tile onto the grid to build.</p>
+                <div id="shop-items"></div>
+            </aside>
+        </main>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
