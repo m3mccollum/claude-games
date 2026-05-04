@@ -33,15 +33,70 @@ class Building {
 }
 
 // ---------------------------------------------------------------------------
+// Citizen entity
+// Lives in board-relative pixel coordinates (independent of the board's
+// position on screen). Wanders by picking a random target, walking to it,
+// dwelling briefly, then picking another.
+// ---------------------------------------------------------------------------
+const BOARD_PIXELS_INNER = GRID_SIZE * CELL_SIZE;
+const CITIZEN_RADIUS = 4;
+const CITIZEN_COLOR = 0x4ade80;
+
+class Citizen {
+    constructor({ id, x, y }) {
+        this.id = id;
+        this.x = x;
+        this.y = y;
+        this.targetX = x;
+        this.targetY = y;
+        this.speed = 18;          // pixels / second
+        this.dwellTime = 0;       // seconds remaining to idle at target
+        this.graphic = null;
+        this.pickNewTarget();
+    }
+
+    pickNewTarget() {
+        const margin = CITIZEN_RADIUS;
+        this.targetX = margin + Math.random() * (BOARD_PIXELS_INNER - margin * 2);
+        this.targetY = margin + Math.random() * (BOARD_PIXELS_INNER - margin * 2);
+    }
+
+    update(dt) {
+        if (this.dwellTime > 0) {
+            this.dwellTime -= dt;
+            if (this.dwellTime <= 0) this.pickNewTarget();
+            return;
+        }
+        const dx = this.targetX - this.x;
+        const dy = this.targetY - this.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 0.5) {
+            this.dwellTime = 0.5 + Math.random() * 1.5;
+            return;
+        }
+        const step = this.speed * dt;
+        if (step >= dist) {
+            this.x = this.targetX;
+            this.y = this.targetY;
+        } else {
+            this.x += (dx / dist) * step;
+            this.y += (dy / dist) * step;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Game state
 // `grid` stores the building id (or null) at each cell so lookups are O(1).
-// `buildings` is the authoritative entity store keyed by id.
+// `buildings` and `citizens` are the authoritative entity stores keyed by id.
 // ---------------------------------------------------------------------------
 const state = {
     currency: 1_000_000,
     grid: Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null)),
     buildings: new Map(),
+    citizens: new Map(),
     nextBuildingId: 1,
+    nextCitizenId: 1,
     tool: 'build',     // 'build' | 'demolish'
     drag: null,
 };
@@ -70,6 +125,15 @@ function removeBuilding(buildingId) {
     state.grid[b.row][b.col] = null;
     state.buildings.delete(buildingId);
     return b;
+}
+
+function spawnCitizenAtCell(row, col) {
+    const jitter = 8;
+    const cx = col * CELL_SIZE + CELL_SIZE / 2 + (Math.random() - 0.5) * jitter;
+    const cy = row * CELL_SIZE + CELL_SIZE / 2 + (Math.random() - 0.5) * jitter;
+    const citizen = new Citizen({ id: state.nextCitizenId++, x: cx, y: cy });
+    state.citizens.set(citizen.id, citizen);
+    return citizen;
 }
 
 // ---------------------------------------------------------------------------
@@ -172,6 +236,10 @@ function onDragUp(e) {
             state.currency -= tile.cost;
             const building = createBuilding(tile.id, cell.row, cell.col);
             gameScene.renderBuilding(building);
+            if (building.typeId === 'house') {
+                const citizen = spawnCitizenAtCell(building.row, building.col);
+                gameScene.renderCitizen(citizen);
+            }
             updateCurrencyDisplay();
         }
     }
@@ -240,6 +308,20 @@ class BoardScene extends Phaser.Scene {
 
         this.hoverGraphics = this.add.graphics();
         this.buildingLayer = this.add.container(0, 0);
+        this.citizenLayer = this.add.container(0, 0);
+    }
+
+    update(_time, deltaMs) {
+        const dt = deltaMs / 1000;
+        for (const citizen of state.citizens.values()) {
+            citizen.update(dt);
+            if (citizen.graphic) {
+                citizen.graphic.setPosition(
+                    this.boardOffsetX + citizen.x,
+                    this.boardOffsetY + citizen.y
+                );
+            }
+        }
     }
 
     drawGrid() {
@@ -351,6 +433,18 @@ class BoardScene extends Phaser.Scene {
 
         this.buildingLayer.add(g);
         building.graphic = g;
+    }
+
+    renderCitizen(citizen) {
+        const dot = this.add.circle(
+            this.boardOffsetX + citizen.x,
+            this.boardOffsetY + citizen.y,
+            CITIZEN_RADIUS,
+            CITIZEN_COLOR
+        );
+        dot.setStrokeStyle(1, 0x000000, 0.5);
+        this.citizenLayer.add(dot);
+        citizen.graphic = dot;
     }
 }
 
