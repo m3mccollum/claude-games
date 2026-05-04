@@ -230,3 +230,29 @@ body.mode-demolish #game-container {
     z-index: 1000;
     display: none;
 }
+
+#citizen-tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: #11141a;
+    border: 1px solid #2a2f3a;
+    color: #e8e8ea;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    z-index: 1000;
+    white-space: nowrap;
+    display: none;
+}
+
+.tooltip-name {
+    font-weight: 600;
+    color: #4ade80;
+}
+
+.tooltip-meta {
+    color: #9aa0ac;
+    margin-top: 2px;
+    font-size: 11px;
+}

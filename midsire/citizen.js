@@ -1,11 +1,20 @@
 import { BOARD_PIXELS_INNER, CITIZEN_RADIUS } from './constants.js';
 
+// Starter name pool — expand later.
+export const CITIZEN_NAMES = ['Aria', 'Bram', 'Cora', 'Davin', 'Elin'];
+
+export function randomCitizenName() {
+    return CITIZEN_NAMES[Math.floor(Math.random() * CITIZEN_NAMES.length)];
+}
+
 // A free-moving worker unit. Position is in board-relative pixel coordinates
 // so the citizen is decoupled from where the board is rendered on screen.
 // Wanders by picking a random target, walking to it, dwelling briefly, repeat.
 export class Citizen {
-    constructor({ id, x, y }) {
+    constructor({ id, x, y, name, birthCell }) {
         this.id = id;
+        this.name = name;
+        this.birthCell = birthCell;     // { row, col } — never changes
         this.x = x;
         this.y = y;
         this.targetX = x;

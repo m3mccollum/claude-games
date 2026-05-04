@@ -8,7 +8,7 @@ import {
     TILE_TYPES,
 } from './constants.js';
 import { Building } from './building.js';
-import { Citizen } from './citizen.js';
+import { Citizen, randomCitizenName } from './citizen.js';
 
 // ---------------------------------------------------------------------------
 // Game state
@@ -56,9 +56,35 @@ function spawnCitizenAtCell(row, col) {
     const jitter = 8;
     const cx = col * CELL_SIZE + CELL_SIZE / 2 + (Math.random() - 0.5) * jitter;
     const cy = row * CELL_SIZE + CELL_SIZE / 2 + (Math.random() - 0.5) * jitter;
-    const citizen = new Citizen({ id: state.nextCitizenId++, x: cx, y: cy });
+    const citizen = new Citizen({
+        id: state.nextCitizenId++,
+        x: cx,
+        y: cy,
+        name: randomCitizenName(),
+        birthCell: { row, col },
+    });
     state.citizens.set(citizen.id, citizen);
     return citizen;
+}
+
+function findCitizenAtClient(clientX, clientY) {
+    if (!gameScene) return null;
+    const p = gameScene.boardCoordsAtClient(clientX, clientY);
+    if (!p) return null;
+    const hitRadius = CITIZEN_RADIUS + 4;
+    const hitR2 = hitRadius * hitRadius;
+    let best = null;
+    let bestD2 = hitR2;
+    for (const c of state.citizens.values()) {
+        const dx = c.x - p.x;
+        const dy = c.y - p.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 <= bestD2) {
+            bestD2 = d2;
+            best = c;
+        }
+    }
+    return best;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +128,28 @@ function buildShop() {
 }
 
 // ---------------------------------------------------------------------------
+// Citizen tooltip
+// ---------------------------------------------------------------------------
+const tooltipEl = document.createElement('div');
+tooltipEl.id = 'citizen-tooltip';
+document.body.appendChild(tooltipEl);
+
+function showTooltip(clientX, clientY, citizen) {
+    const { row, col } = citizen.birthCell;
+    tooltipEl.innerHTML = `
+        <div class="tooltip-name">${citizen.name}</div>
+        <div class="tooltip-meta">Born at cell (${row + 1}, ${col + 1})</div>
+    `;
+    tooltipEl.style.display = 'block';
+    tooltipEl.style.left = (clientX + 14) + 'px';
+    tooltipEl.style.top = (clientY + 14) + 'px';
+}
+
+function hideTooltip() {
+    tooltipEl.style.display = 'none';
+}
+
+// ---------------------------------------------------------------------------
 // Tool selection
 // ---------------------------------------------------------------------------
 function setTool(tool) {
@@ -111,6 +159,7 @@ function setTool(tool) {
     document.body.classList.toggle('mode-demolish', tool === 'demolish');
     demolishBtn.classList.toggle('active', tool === 'demolish');
     if (gameScene) gameScene.clearHover();
+    hideTooltip();
 }
 
 demolishBtn.addEventListener('click', () => {
@@ -132,6 +181,7 @@ function startDrag(e, tile) {
     if (state.tool !== 'build') return;
     if (state.currency < tile.cost) return;
     e.preventDefault();
+    hideTooltip();
     state.drag = { tile, pointerId: e.pointerId };
     ghostEl.style.background = colorToCss(tile.color);
     ghostEl.style.display = 'block';
@@ -186,12 +236,27 @@ function cancelDrag() {
 const gameContainerEl = document.getElementById('game-container');
 
 gameContainerEl.addEventListener('pointermove', e => {
-    if (state.tool !== 'demolish' || !gameScene) return;
-    gameScene.updateDemolishHover(e.clientX, e.clientY);
+    if (!gameScene) return;
+    if (state.tool === 'demolish') {
+        gameScene.updateDemolishHover(e.clientX, e.clientY);
+        hideTooltip();
+        return;
+    }
+    if (state.drag) {
+        hideTooltip();
+        return;
+    }
+    const citizen = findCitizenAtClient(e.clientX, e.clientY);
+    if (citizen) {
+        showTooltip(e.clientX, e.clientY, citizen);
+    } else {
+        hideTooltip();
+    }
 });
 
 gameContainerEl.addEventListener('pointerleave', () => {
-    if (state.tool === 'demolish' && gameScene) gameScene.clearHover();
+    if (gameScene && state.tool === 'demolish') gameScene.clearHover();
+    hideTooltip();
 });
 
 gameContainerEl.addEventListener('pointerdown', e => {
@@ -264,13 +329,21 @@ class BoardScene extends Phaser.Scene {
         }
     }
 
-    cellAtClient(clientX, clientY) {
+    boardCoordsAtClient(clientX, clientY) {
         const canvas = this.game.canvas;
         const rect = canvas.getBoundingClientRect();
         const localX = (clientX - rect.left) * (canvas.width / rect.width);
         const localY = (clientY - rect.top) * (canvas.height / rect.height);
-        const c = Math.floor((localX - this.boardOffsetX) / CELL_SIZE);
-        const r = Math.floor((localY - this.boardOffsetY) / CELL_SIZE);
+        return {
+            x: localX - this.boardOffsetX,
+            y: localY - this.boardOffsetY,
+        };
+    }
+
+    cellAtClient(clientX, clientY) {
+        const p = this.boardCoordsAtClient(clientX, clientY);
+        const c = Math.floor(p.x / CELL_SIZE);
+        const r = Math.floor(p.y / CELL_SIZE);
         if (r < 0 || r >= GRID_SIZE || c < 0 || c >= GRID_SIZE) return null;
         return { row: r, col: c };
     }
