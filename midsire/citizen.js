@@ -1,7 +1,23 @@
 import { BOARD_PIXELS_INNER, CITIZEN_RADIUS } from './constants.js';
 
-// Starter name pool — expand later.
-export const CITIZEN_NAMES = ['Aria', 'Bram', 'Cora', 'Davin', 'Elin'];
+// Surnames drawn from airports named after people (e.g. O'Hare, Hartsfield).
+export const CITIZEN_NAMES = [
+    "O'Hare",
+    'Hartsfield',
+    'Kennedy',
+    'LaGuardia',
+    'Reagan',
+    'Bush',
+    'Hobby',
+    'Lambert',
+    'Logan',
+    'Bradley',
+    'Reid',
+    'Dulles',
+    'Mitchell',
+    'Pearson',
+    'Trudeau',
+];
 
 export function randomCitizenName() {
     return CITIZEN_NAMES[Math.floor(Math.random() * CITIZEN_NAMES.length)];
