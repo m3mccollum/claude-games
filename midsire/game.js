@@ -1,89 +1,14 @@
-// ---------------------------------------------------------------------------
-// Constants & tile catalog
-// ---------------------------------------------------------------------------
-const GRID_SIZE = 11;
-const CELL_SIZE = 56;
-const GRID_PADDING = 24;
-const BOARD_PIXELS = GRID_SIZE * CELL_SIZE + GRID_PADDING * 2;
-
-const TILE_TYPES = [
-    { id: 'house', name: 'House', cost: 100,  color: 0xc97b5a, shape: 'roof' },
-    { id: 'tower', name: 'Tower', cost: 1500, color: 0xd9d9d9, shape: 'tower' },
-];
-
-const tileById = Object.fromEntries(TILE_TYPES.map(t => [t.id, t]));
-
-// ---------------------------------------------------------------------------
-// Building entity
-// Each placed structure is its own object so future systems (production,
-// upgrades, damage, selection, save/load) can attach to it directly.
-// ---------------------------------------------------------------------------
-class Building {
-    constructor({ id, typeId, row, col }) {
-        this.id = id;
-        this.typeId = typeId;
-        this.row = row;
-        this.col = col;
-        this.graphic = null;
-    }
-
-    get type() {
-        return tileById[this.typeId];
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Citizen entity
-// Lives in board-relative pixel coordinates (independent of the board's
-// position on screen). Wanders by picking a random target, walking to it,
-// dwelling briefly, then picking another.
-// ---------------------------------------------------------------------------
-const BOARD_PIXELS_INNER = GRID_SIZE * CELL_SIZE;
-const CITIZEN_RADIUS = 4;
-const CITIZEN_COLOR = 0x4ade80;
-
-class Citizen {
-    constructor({ id, x, y }) {
-        this.id = id;
-        this.x = x;
-        this.y = y;
-        this.targetX = x;
-        this.targetY = y;
-        this.speed = 18;          // pixels / second
-        this.dwellTime = 0;       // seconds remaining to idle at target
-        this.graphic = null;
-        this.pickNewTarget();
-    }
-
-    pickNewTarget() {
-        const margin = CITIZEN_RADIUS;
-        this.targetX = margin + Math.random() * (BOARD_PIXELS_INNER - margin * 2);
-        this.targetY = margin + Math.random() * (BOARD_PIXELS_INNER - margin * 2);
-    }
-
-    update(dt) {
-        if (this.dwellTime > 0) {
-            this.dwellTime -= dt;
-            if (this.dwellTime <= 0) this.pickNewTarget();
-            return;
-        }
-        const dx = this.targetX - this.x;
-        const dy = this.targetY - this.y;
-        const dist = Math.hypot(dx, dy);
-        if (dist < 0.5) {
-            this.dwellTime = 0.5 + Math.random() * 1.5;
-            return;
-        }
-        const step = this.speed * dt;
-        if (step >= dist) {
-            this.x = this.targetX;
-            this.y = this.targetY;
-        } else {
-            this.x += (dx / dist) * step;
-            this.y += (dy / dist) * step;
-        }
-    }
-}
+import {
+    GRID_SIZE,
+    CELL_SIZE,
+    GRID_PADDING,
+    BOARD_PIXELS,
+    CITIZEN_RADIUS,
+    CITIZEN_COLOR,
+    TILE_TYPES,
+} from './constants.js';
+import { Building } from './building.js';
+import { Citizen } from './citizen.js';
 
 // ---------------------------------------------------------------------------
 // Game state
