@@ -18,9 +18,21 @@
         <main id="main">
             <div id="game-container"></div>
             <aside id="shop">
-                <h2>Shop</h2>
-                <p class="hint">Drag a tile onto the grid to build.</p>
-                <div id="shop-items"></div>
+                <section class="panel">
+                    <h2>Tools</h2>
+                    <div id="tools">
+                        <button id="tool-demolish" class="tool-btn" type="button">
+                            <span class="tool-icon">&times;</span>
+                            <span class="tool-label">Demolish</span>
+                        </button>
+                    </div>
+                    <p class="hint" id="tool-hint">Click a tool to activate it. Press Esc to cancel.</p>
+                </section>
+                <section class="panel">
+                    <h2>Shop</h2>
+                    <p class="hint">Drag a building onto the grid to place it.</p>
+                    <div id="shop-items"></div>
+                </section>
             </aside>
         </main>
     </div>

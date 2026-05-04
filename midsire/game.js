@@ -1,37 +1,86 @@
+// ---------------------------------------------------------------------------
+// Constants & tile catalog
+// ---------------------------------------------------------------------------
 const GRID_SIZE = 11;
 const CELL_SIZE = 56;
 const GRID_PADDING = 24;
 const BOARD_PIXELS = GRID_SIZE * CELL_SIZE + GRID_PADDING * 2;
 
 const TILE_TYPES = [
-    { id: 'grass',   name: 'Grass',   cost: 10,   color: 0x6abf69, shape: 'square' },
-    { id: 'house',   name: 'House',   cost: 100,  color: 0xc97b5a, shape: 'roof' },
-    { id: 'farm',    name: 'Farm',    cost: 250,  color: 0xe6c84d, shape: 'stripes' },
-    { id: 'tree',    name: 'Tree',    cost: 50,   color: 0x2f7a3a, shape: 'circle' },
-    { id: 'water',   name: 'Water',   cost: 30,   color: 0x4a90d9, shape: 'square' },
-    { id: 'road',    name: 'Road',    cost: 20,   color: 0x6a6a6a, shape: 'square' },
-    { id: 'market',  name: 'Market',  cost: 500,  color: 0xb064c9, shape: 'roof' },
-    { id: 'tower',   name: 'Tower',   cost: 1500, color: 0xd9d9d9, shape: 'tower' },
+    { id: 'house', name: 'House', cost: 100,  color: 0xc97b5a, shape: 'roof' },
+    { id: 'tower', name: 'Tower', cost: 1500, color: 0xd9d9d9, shape: 'tower' },
 ];
-
-const state = {
-    currency: 1_000_000,
-    grid: Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null)),
-    drag: null,
-};
 
 const tileById = Object.fromEntries(TILE_TYPES.map(t => [t.id, t]));
 
+// ---------------------------------------------------------------------------
+// Building entity
+// Each placed structure is its own object so future systems (production,
+// upgrades, damage, selection, save/load) can attach to it directly.
+// ---------------------------------------------------------------------------
+class Building {
+    constructor({ id, typeId, row, col }) {
+        this.id = id;
+        this.typeId = typeId;
+        this.row = row;
+        this.col = col;
+        this.graphic = null;
+    }
+
+    get type() {
+        return tileById[this.typeId];
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Game state
+// `grid` stores the building id (or null) at each cell so lookups are O(1).
+// `buildings` is the authoritative entity store keyed by id.
+// ---------------------------------------------------------------------------
+const state = {
+    currency: 1_000_000,
+    grid: Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null)),
+    buildings: new Map(),
+    nextBuildingId: 1,
+    tool: 'build',     // 'build' | 'demolish'
+    drag: null,
+};
+
+function getBuildingAt(row, col) {
+    const id = state.grid[row][col];
+    return id === null ? null : state.buildings.get(id);
+}
+
+function createBuilding(typeId, row, col) {
+    const building = new Building({
+        id: state.nextBuildingId++,
+        typeId,
+        row,
+        col,
+    });
+    state.buildings.set(building.id, building);
+    state.grid[row][col] = building.id;
+    return building;
+}
+
+function removeBuilding(buildingId) {
+    const b = state.buildings.get(buildingId);
+    if (!b) return null;
+    if (b.graphic) b.graphic.destroy();
+    state.grid[b.row][b.col] = null;
+    state.buildings.delete(buildingId);
+    return b;
+}
+
+// ---------------------------------------------------------------------------
+// DOM refs & utilities
+// ---------------------------------------------------------------------------
 const currencyEl = document.getElementById('currency-amount');
 const shopItemsEl = document.getElementById('shop-items');
+const demolishBtn = document.getElementById('tool-demolish');
 
-function formatCurrency(n) {
-    return n.toLocaleString();
-}
-
-function colorToCss(int) {
-    return '#' + int.toString(16).padStart(6, '0');
-}
+const formatCurrency = n => n.toLocaleString();
+const colorToCss = int => '#' + int.toString(16).padStart(6, '0');
 
 function updateCurrencyDisplay() {
     currencyEl.textContent = formatCurrency(state.currency);
@@ -41,6 +90,9 @@ function updateCurrencyDisplay() {
     });
 }
 
+// ---------------------------------------------------------------------------
+// Shop UI
+// ---------------------------------------------------------------------------
 function buildShop() {
     TILE_TYPES.forEach(tile => {
         const item = document.createElement('div');
@@ -60,20 +112,44 @@ function buildShop() {
     });
 }
 
+// ---------------------------------------------------------------------------
+// Tool selection
+// ---------------------------------------------------------------------------
+function setTool(tool) {
+    if (state.tool === tool) return;
+    if (state.drag) cancelDrag();
+    state.tool = tool;
+    document.body.classList.toggle('mode-demolish', tool === 'demolish');
+    demolishBtn.classList.toggle('active', tool === 'demolish');
+    if (gameScene) gameScene.clearHover();
+}
+
+demolishBtn.addEventListener('click', () => {
+    setTool(state.tool === 'demolish' ? 'build' : 'demolish');
+});
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') setTool('build');
+});
+
+// ---------------------------------------------------------------------------
+// Drag-from-shop placement
+// ---------------------------------------------------------------------------
 const ghostEl = document.createElement('div');
 ghostEl.id = 'drag-ghost';
 document.body.appendChild(ghostEl);
 
 function startDrag(e, tile) {
+    if (state.tool !== 'build') return;
     if (state.currency < tile.cost) return;
     e.preventDefault();
     state.drag = { tile, pointerId: e.pointerId };
     ghostEl.style.background = colorToCss(tile.color);
     ghostEl.style.display = 'block';
     moveGhost(e.clientX, e.clientY);
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('pointercancel', onPointerUp);
+    window.addEventListener('pointermove', onDragMove);
+    window.addEventListener('pointerup', onDragUp);
+    window.addEventListener('pointercancel', onDragUp);
 }
 
 function moveGhost(x, y) {
@@ -81,21 +157,21 @@ function moveGhost(x, y) {
     ghostEl.style.top = y + 'px';
 }
 
-function onPointerMove(e) {
+function onDragMove(e) {
     if (!state.drag) return;
     moveGhost(e.clientX, e.clientY);
-    if (gameScene) gameScene.updateHover(e.clientX, e.clientY);
+    if (gameScene) gameScene.updateBuildHover(e.clientX, e.clientY);
 }
 
-function onPointerUp(e) {
+function onDragUp(e) {
     if (!state.drag) return;
     const cell = gameScene ? gameScene.cellAtClient(e.clientX, e.clientY) : null;
     if (cell && state.grid[cell.row][cell.col] === null) {
         const tile = state.drag.tile;
         if (state.currency >= tile.cost) {
             state.currency -= tile.cost;
-            state.grid[cell.row][cell.col] = tile.id;
-            gameScene.placeTile(cell.row, cell.col, tile);
+            const building = createBuilding(tile.id, cell.row, cell.col);
+            gameScene.renderBuilding(building);
             updateCurrencyDisplay();
         }
     }
@@ -106,28 +182,52 @@ function cancelDrag() {
     state.drag = null;
     ghostEl.style.display = 'none';
     if (gameScene) gameScene.clearHover();
-    window.removeEventListener('pointermove', onPointerMove);
-    window.removeEventListener('pointerup', onPointerUp);
-    window.removeEventListener('pointercancel', onPointerUp);
+    window.removeEventListener('pointermove', onDragMove);
+    window.removeEventListener('pointerup', onDragUp);
+    window.removeEventListener('pointercancel', onDragUp);
 }
 
+// ---------------------------------------------------------------------------
+// Demolish-tool input (canvas pointer events bubble up to the container)
+// ---------------------------------------------------------------------------
+const gameContainerEl = document.getElementById('game-container');
+
+gameContainerEl.addEventListener('pointermove', e => {
+    if (state.tool !== 'demolish' || !gameScene) return;
+    gameScene.updateDemolishHover(e.clientX, e.clientY);
+});
+
+gameContainerEl.addEventListener('pointerleave', () => {
+    if (state.tool === 'demolish' && gameScene) gameScene.clearHover();
+});
+
+gameContainerEl.addEventListener('pointerdown', e => {
+    if (state.tool !== 'demolish' || !gameScene) return;
+    const cell = gameScene.cellAtClient(e.clientX, e.clientY);
+    if (!cell) return;
+    const building = getBuildingAt(cell.row, cell.col);
+    if (!building) return;
+    removeBuilding(building.id);
+    gameScene.updateDemolishHover(e.clientX, e.clientY);
+});
+
+// ---------------------------------------------------------------------------
+// Phaser scene — pure renderer that mirrors `state`
+// ---------------------------------------------------------------------------
 let gameScene = null;
 
 class BoardScene extends Phaser.Scene {
     constructor() {
         super('BoardScene');
-        this.tileGraphics = {};
-        this.hoverCell = null;
     }
 
     create() {
         gameScene = this;
         this.cameras.main.setBackgroundColor('#0f1218');
-
         this.boardOffsetX = GRID_PADDING;
         this.boardOffsetY = GRID_PADDING;
 
-        const boardBg = this.add.rectangle(
+        this.add.rectangle(
             this.boardOffsetX - 6,
             this.boardOffsetY - 6,
             GRID_SIZE * CELL_SIZE + 12,
@@ -139,7 +239,7 @@ class BoardScene extends Phaser.Scene {
         this.drawGrid();
 
         this.hoverGraphics = this.add.graphics();
-        this.tileLayer = this.add.container(0, 0);
+        this.buildingLayer = this.add.container(0, 0);
     }
 
     drawGrid() {
@@ -168,28 +268,42 @@ class BoardScene extends Phaser.Scene {
         return { row: r, col: c };
     }
 
-    updateHover(clientX, clientY) {
-        const cell = this.cellAtClient(clientX, clientY);
-        this.hoverCell = cell;
+    drawHoverRect(cell, color, fillAlpha = 0.15, strokeAlpha = 1) {
         const g = this.hoverGraphics;
         g.clear();
         if (!cell) return;
         const x = this.boardOffsetX + cell.col * CELL_SIZE;
         const y = this.boardOffsetY + cell.row * CELL_SIZE;
-        const occupied = state.grid[cell.row][cell.col] !== null;
-        const color = occupied ? 0xd95a5a : 0xffd76b;
-        g.lineStyle(3, color, 1);
+        g.lineStyle(3, color, strokeAlpha);
         g.strokeRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2);
-        g.fillStyle(color, 0.15);
+        g.fillStyle(color, fillAlpha);
         g.fillRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2);
     }
 
+    updateBuildHover(clientX, clientY) {
+        const cell = this.cellAtClient(clientX, clientY);
+        if (!cell) { this.hoverGraphics.clear(); return; }
+        const occupied = state.grid[cell.row][cell.col] !== null;
+        this.drawHoverRect(cell, occupied ? 0xd95a5a : 0xffd76b);
+    }
+
+    updateDemolishHover(clientX, clientY) {
+        const cell = this.cellAtClient(clientX, clientY);
+        if (!cell) { this.hoverGraphics.clear(); return; }
+        const hasBuilding = state.grid[cell.row][cell.col] !== null;
+        if (hasBuilding) {
+            this.drawHoverRect(cell, 0xd95a5a, 0.25, 1);
+        } else {
+            this.drawHoverRect(cell, 0x666666, 0.05, 0.4);
+        }
+    }
+
     clearHover() {
-        this.hoverCell = null;
         this.hoverGraphics.clear();
     }
 
-    placeTile(row, col, tile) {
+    renderBuilding(building) {
+        const { row, col, type } = building;
         const x = this.boardOffsetX + col * CELL_SIZE;
         const y = this.boardOffsetY + row * CELL_SIZE;
         const inset = 4;
@@ -199,14 +313,10 @@ class BoardScene extends Phaser.Scene {
         const cy = y + CELL_SIZE / 2;
 
         const g = this.add.graphics();
-        g.fillStyle(tile.color, 1);
+        g.fillStyle(type.color, 1);
         g.lineStyle(1, 0x000000, 0.3);
 
-        switch (tile.shape) {
-            case 'circle':
-                g.fillCircle(cx, cy, w / 2);
-                g.strokeCircle(cx, cy, w / 2);
-                break;
+        switch (type.shape) {
             case 'roof': {
                 g.fillRect(x + inset, cy - 2, w, h / 2 + 2);
                 g.strokeRect(x + inset, cy - 2, w, h / 2 + 2);
@@ -222,17 +332,6 @@ class BoardScene extends Phaser.Scene {
                 );
                 break;
             }
-            case 'stripes': {
-                g.fillRect(x + inset, y + inset, w, h);
-                g.strokeRect(x + inset, y + inset, w, h);
-                g.lineStyle(2, 0x8a6a1f, 0.7);
-                const stripes = 4;
-                for (let i = 1; i < stripes; i++) {
-                    const sy = y + inset + (h / stripes) * i;
-                    g.lineBetween(x + inset + 2, sy, x + inset + w - 2, sy);
-                }
-                break;
-            }
             case 'tower': {
                 g.fillRect(cx - w * 0.25, y + inset, w * 0.5, h);
                 g.strokeRect(cx - w * 0.25, y + inset, w * 0.5, h);
@@ -244,18 +343,20 @@ class BoardScene extends Phaser.Scene {
                 );
                 break;
             }
-            case 'square':
             default:
                 g.fillRect(x + inset, y + inset, w, h);
                 g.strokeRect(x + inset, y + inset, w, h);
                 break;
         }
 
-        this.tileLayer.add(g);
-        this.tileGraphics[`${row},${col}`] = g;
+        this.buildingLayer.add(g);
+        building.graphic = g;
     }
 }
 
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
 const config = {
     type: Phaser.AUTO,
     parent: 'game-container',
